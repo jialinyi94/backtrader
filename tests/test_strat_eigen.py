@@ -1,7 +1,7 @@
 import yfinance as yf
 import backtrader as bt
 import pyfolio as pf
-from backtrader.strategies import EigenPortfolioStrategy
+from backtrader.strategies import EigenPortfolio
 import matplotlib.pyplot as plt
 
 
@@ -48,7 +48,7 @@ def run_backtest(datas, initial_cash=100000.0, plot=True):
     cerebro = bt.Cerebro()
     
     # 添加策略
-    cerebro.addstrategy(EigenPortfolioStrategy, 
+    cerebro.addstrategy(EigenPortfolio, 
                         lookback=252,           # 一年的交易日
                         rebalance_period=21,    # 每月重新平衡
                         top_eigen=5,            # 使用前5个主成分

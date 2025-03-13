@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8; py-indent-offset:4 -*-
-
-import backtrader as bt
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 
+from backtrader.strategies.porfolio_base import PortfolioBase
 
-class EigenPortfolioStrategy(bt.Strategy):
+
+class EigenPortfolio(PortfolioBase):
     """
     基于特征投资组合(Eigen Portfolio)的策略
     
@@ -28,40 +28,12 @@ class EigenPortfolioStrategy(bt.Strategy):
         ('print_debug', True),     # 是否打印调试信息
     )
 
-    def log(self, txt, dt=None):
-        """日志函数用于输出信息"""
-        if self.p.print_debug:
-            dt = dt or self.datas[0].datetime.date(0)
-            print(f'{dt.isoformat()}: {txt}')
-
     def __init__(self):
-        # 存储每个数据源的收盘价
-        self.close_prices = {}
-        self.assets = []
-        
-        # 初始化每个数据源
-        for i, data in enumerate(self.datas):
-            # 获取资产名称
-            asset_name = data._name
-            self.assets.append(asset_name)
-            # 存储收盘价引用
-            self.close_prices[asset_name] = data.close
-        
-        # 初始化投资组合权重
-        self.weights = {asset: 0.0 for asset in self.assets}
-        
-        # 初始化重新平衡计数器
-        self.rebalance_count = 0
-        
         # 设置最小周期
         self.addminperiod(self.p.lookback + 1)
-        
-        # 存储每日投资组合价值
-        self.portfolio_value = []
-        self.dates = []
+        super().__init__()
 
     def next(self):
-        
         # 存储当前日期和投资组合价值
         self.dates.append(self.datas[0].datetime.date(0))
         self.portfolio_value.append(self.broker.getvalue())
@@ -69,7 +41,6 @@ class EigenPortfolioStrategy(bt.Strategy):
         tester = len(self) - self.p.lookback
         if (tester > 0) and (tester % self.p.rebalance_period == 1):
             self.log(f'重新平衡投资组合，当前日期: {self.datas[0].datetime.date(0)}')
-            self.rebalance_count = 0
             self.rebalance_portfolio()
 
     def rebalance_portfolio(self):
@@ -130,68 +101,3 @@ class EigenPortfolioStrategy(bt.Strategy):
             
         except Exception as e:
             self.log(f"计算特征投资组合时出错: {str(e)}")
-    
-    def adjust_positions(self):
-        """根据计算的权重调整投资组合持仓"""
-        # 获取当前投资组合总价值
-        portfolio_value = self.broker.getvalue()
-        
-        # 平仓所有现有头寸
-        for data in self.datas:
-            self.close(data=data)
-        
-        # 根据新的权重分配资金
-        for i, data in enumerate(self.datas):
-            asset_name = data._name
-            weight = self.weights[asset_name]
-            
-            if abs(weight) > 0.01:  # 忽略非常小的权重
-                # 计算目标头寸规模
-                price = data.close[0]
-                target_value = portfolio_value * weight
-                size = int(target_value / price)
-                
-                # 开仓(可以做多或做空)
-                if size > 0:
-                    self.log(f'买入 {asset_name}: {size} 股，价格: {price:.2f}')
-                    self.buy(data=data, size=size)
-                elif size < 0:
-                    self.log(f'卖空 {asset_name}: {abs(size)} 股，价格: {price:.2f}')
-                    self.sell(data=data, size=abs(size))
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.log(
-                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                    (order.executed.price,
-                     order.executed.value,
-                     order.executed.comm))
-
-                self.buyprice = order.executed.price
-                self.buycomm = order.executed.comm
-            else:  # Sell
-                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                         (order.executed.price,
-                          order.executed.value,
-                          order.executed.comm))
-
-            self.bar_executed = len(self)
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
-
-        self.order = None
-
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
-                 (trade.pnl, trade.pnlcomm))
