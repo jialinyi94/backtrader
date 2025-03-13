@@ -102,3 +102,26 @@ class PortfolioBase(bt.Strategy):
 
         self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
                  (trade.pnl, trade.pnlcomm))
+
+
+class PortfolioSideInfoBase(PortfolioBase):
+    def __init__(self, side_info_data_start: int):
+        self.side_info_data_start = side_info_data_start
+        # 存储每个数据源的收盘价
+        self.close_prices = {}
+        self.assets = []
+        
+        # 初始化每个数据源
+        for i, data in enumerate(self.datas[:self.side_info_data_start]):
+            # 获取资产名称
+            asset_name = data._name
+            self.assets.append(asset_name)
+            # 存储收盘价引用
+            self.close_prices[asset_name] = data.close
+        
+        # 初始化投资组合权重
+        self.weights = {asset: 0.0 for asset in self.assets}
+        
+        # 存储每日投资组合价值
+        self.portfolio_value = []
+        self.dates = []
